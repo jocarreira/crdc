@@ -1,0 +1,186 @@
+http://localhost:8080/api/cnab/upload
+http://localhost:8080/api/cnab/upload
+
+001 - Registro de Cabeçalho
+   - Posições 1-3: Identificação do tipo de registro (001)
+   - Posições 4-33: Razão social da empresa
+   - Posições 34-47: Identificador da empresa
+   - Posições 48-80: Espaço reservado para uso futuro
+
+002 - Registro de Transação
+   - Posições 1-3: Identificação do tipo de registro (002)
+   - Posição 4: Tipo de transação (C para Crédito, D para Débito, T para Transferência)
+   - Posições 5-20: Valor da transação (formato decimal, sem ponto decimal)
+   - Posições 21-36: Conta origem
+   - Posições 37-52: Conta destino
+
+003 - Registro de Rodapé
+   - Posições 1-3: Identificação do tipo de registro (003)
+   - Posições 4-80: Espaço reservado para informações de totalização ou controle
+
+  
+ARQUIVO VÁLIDO
+===============
+001Empresa A              1900010000010000          Empresa A
+002C10000000010000000001234560000012345
+002D200000000200000000012345612345600
+002T300000000300000000012345623456789
+003
+
+ARQUIVO INVÁLIDO
+================
+001Empresa B 1900010000020000 Empresa B
+002C10000000010000000001234560000012345
+002D200000000200000000012345612345600
+002T300000000300000000012345623456789
+003XPTO
+
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "status": "success",
+  "message": "Arquivo CNAB enviado e processado com sucesso.",
+  "data": {
+    "transactions": [
+      {
+        "type": "C",
+        "value": 100.00,
+        "accountOrigin": "123456",
+        "accountDestination": "0012345"
+      },
+      {
+        "type": "D",
+        "value": 200.00,
+        "accountOrigin": "123456",
+        "accountDestination": "123456"
+      }
+      // Mais transações autorizadas aqui
+    ]
+  }
+}
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+{
+    "status": "error",
+    "message": "O arquivo CNAB possui formato inválido.",
+    "errors": [
+        {
+            "line": 1,
+            "error": "Erro na linha 1: Tipo de transação inválido."
+        },
+        {
+            "line": 2,
+            "error": "Erro na linha 2: Valor da transação está fora do formato válido."
+        },
+        {
+            "line": 4,
+            "error": "Erro na linha 4: Conta origem não está no formato correto."
+        },
+        {
+            "line": 5,
+            "error": " Erro na linha 5: Conta destino não está no formato correto."
+        }
+    ]
+}
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+{
+  "status": "error",
+  "message": "Erro ao processar o arquivo CNAB. Certifique-se de que o arquivo esteja no formato posicional correto.",
+}
+
+### **Campos:**
+
+- **`status`**: Indica o status da resposta (**`success`** ou **`error`**).
+- **`message`**: Mensagem indicando o resultado da operação, seja sucesso ou erro.
+- **`data`**: Objeto contendo dados relevantes (transações no caso de sucesso).
+- **`errors`**: Lista de erros contendo os objetos com linha e a descrição do erro.
+- **Atente-se**, no caso do arquivo estar invalido, apenas o status e a mensagem deverão ser retornados.
+
+Exemplos de Mensagens de Erro:
+
+- Erro na linha X: Tipo de transação inválido.
+- Erro na linha X: Valor da transação está fora do formato válido.
+- Erro na linha X: Conta origem não está no formato correto.
+- Erro na linha X: Conta destino não está no formato correto.
+- Erro na linha X: Valor da transação não pode ser nulo.
+- Erro na linha X: Conta origem é obrigatória.
+- Erro na linha X: Conta destino é obrigatória.
+
+
+SWAGGER
+http://localhost:8080/swagger-ui/index.html
+
+
+Gpt. Refaça o Controller abaixo e configure ele com Swagger lendo em consideração que 
+o endpoint deve implementar os seguinte retornos de sucesso e insucesso abaixo :
+
+@RestController
+@RequestMapping("/api/cnab")
+@Slf4j
+public class CnabUploadController {
+
+    @Autowired
+    private CnabUploadService service;
+
+    @PostMapping("/upload")
+    public ResponseEntity<?> uploadCNABFile(@RequestParam("file") MultipartFile file) {
+        try {
+            service.processFile(file);
+            return ResponseEntity.ok("Arquivo CNAB enviado com sucesso.");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Erro durante o processamento do arquivo CNAB: " + e.getMessage());
+        }
+    }
+}
+
+Response API para Upload de Arquivo CNAB (Sucesso)
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+ApiResponseDTO
+{
+  "status": "success",
+  "message": "Arquivo CNAB enviado e processado com sucesso.",
+  "data": {
+    "transactions": [
+      {
+        "type": "C",
+        "value": 100.00,
+        "accountOrigin": "123456",
+        "accountDestination": "0012345"
+      },
+      {
+        "type": "D",
+        "value": 200.00,
+        "accountOrigin": "123456",
+        "accountDestination": "123456"
+      }
+      // Mais transações autorizadas aqui
+    ]
+  }
+}
+
+Response API para Upload de Arquivo CNAB com dados incorretos (Erro 1)
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+ErrorResponseDTO :
+{
+  "status": "error",
+  "message": "O arquivo CNAB possui formato inválido.",
+  "errors": [
+    { "line": 5, "error": "Valor da transação está fora do formato válido." },
+    { "line": 8, "error": "Tipo de transação inválido." }
+  ]
+}
+Response API para Upload de Arquivo CNAB Inválido (Erro 2)
+
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+GenericErrorResponseDTO :
+{
+  "status": "error",
+  "message": "Erro ao processar o arquivo CNAB. Certifique-se de que o arquivo esteja no formato posicional correto.",
+}
